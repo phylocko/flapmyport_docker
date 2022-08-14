@@ -1,0 +1,61 @@
+version: '3.4'
+services:
+
+  api:
+    build: api
+    container_name: fmp_api
+    ports:
+      - "8080:8080"
+    environment:
+      - LISTEN_PORT=8080     
+      - DBNAME=${DBNAME}
+      - DBUSER=${DBUSER}
+      - DBPASSWORD=${DBPASSWORD}
+      - DBHOST=db
+    depends_on:
+      - db
+ 
+  snmpflapd:
+    build: snmpflapd
+    container_name: fmp_snmpflapd
+    ports: 
+      - "${LISTEN_PORT}:${LISTEN_PORT}"
+    environment:
+      - LOGFILE=${LOGFILE}
+      - LISTEN_ADDRESS=${LISTEN_ADDRESS}
+      - LISTEN_PORT=${LISTEN_PORT}
+      - DBNAME=${DBNAME}
+      - DBUSER=${DBUSER}
+      - DBPASSWORD=${DBPASSWORD}
+      - DBHOST=db
+    depends_on:
+      - db
+  db:
+    image: mysql:latest
+    container_name: fmp_mysql
+    volumes:
+      - fmp-mysql-data:/var/lib/mysql
+      - ./db:/docker-entrypoint-initdb.d
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=1
+      - MYSQL_DATABASE=${DBNAME}
+      - MYSQL_USER=${DBUSER}
+      - MYSQL_PASSWORD=${DBPASSWORD}
+    ports: # for accessing mysql from local machine
+      - "3306:3306"
+      - "33060:33060"
+  
+  nginx:
+    depends_on:
+      - api
+    image: nginx:stable-alpine
+    volumes:
+      - ./nginx:/etc/nginx
+      - ./web:/html
+    ports:
+      - "80:80"
+      - "443:443"
+
+volumes:
+  fmp-mysql-data:
+    driver: local
