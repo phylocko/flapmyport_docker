@@ -1,29 +1,48 @@
-# FlapMyPort bundle
-Dockerized FlapMyPort monitoring system
+# FlapMyPort Docker
+
+Dockerized FlapMyPort monitoring system bundle
 
 ## What is FlapMyPort
-FlapMyPort is a fast and easy monitoring system with the following components:
 
-**snmpflapd** — A high performance daemon that receives SNMP Link UP/DOWN traps, stores them to MySQL and sends combined emails
+FlapMyPort is a fast and easy monitoring system with the following components
 
-**iOS client** — a native iOS client with handy UX
+![Scheme](assets/scheme.png)
 
-**AppleTV client** — Client for network enthusiast with AppleTV. Based on TVML.
+**snmpflapd** — A high performance daemon that collects SNMP Link UP/DOWN traps
+
+**flapmyport_api** — API that shows the data collected by the snmplapd
+
+**iOS client** — A native iOS client with handy UX
 
 **Web client** — Responsve web application for desktop and mobile devices
 
+**AppleTV client** — Client for network enthusiasts with AppleTV
+
+
 ## Quick Start
-- Install Docker if it's not installed yet
-- Edit .env file if you need custom SNMP community (default is `public`)
-- Go to the directory containing this file and `docker-compose.yml` file and run `docker-compose up -d`
 
-Web client will be available by the following URL: `http://your_host_ip_address/`
+### 1. Run FlapMyPort
+`docker-compose up -d`
 
-API URL for clients is `http://your_host_ip_address/api`
+- Web client will be available by the following URL: `http://<ip_address>/`
+- API URL for clients is `http://<ip_address>/api`
 
-After that you need to configure sending SNMP traps from your network devices to the FlapMyPort server. 
+### 2. Configure network devices
+
+After that you need to configure your network devices to:
+- send SNMP traps to the FlapMyPort server
+- Answer to SNMPGet from **snmpflapd**
 
 > Note that your network devices must be accessable from the server, 
 > as snmpflapd strikes back with snmp get queries to fetch information about hostname.
 
+You're all set!
+
+---
+
+## Custom settings
+
+Edit `.env` file if you need custom SNMP community or nginx configuration.
+
+---
 *And may a stable network be with you!*
