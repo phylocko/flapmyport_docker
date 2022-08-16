@@ -2,8 +2,8 @@ version: '3.4'
 services:
 
   api:
-    build: api
-    container_name: fmp_api
+    image: phylocko/flapmyport_api:0.1.0
+    container_name: api
     ports:
       - "8080:8080"
     environment:
@@ -16,8 +16,8 @@ services:
       - db
  
   snmpflapd:
-    build: snmpflapd
-    container_name: fmp_snmpflapd
+    image: phylocko/snmpflapd:1.0.0
+    container_name: snmpflapd
     ports: 
       - "${LISTEN_PORT}:${LISTEN_PORT}"
     environment:
@@ -30,9 +30,10 @@ services:
       - DBHOST=db
     depends_on:
       - db
+
   db:
     image: mysql:latest
-    container_name: fmp_mysql
+    container_name: mysql
     volumes:
       - fmp-mysql-data:/var/lib/mysql
       - ./db:/docker-entrypoint-initdb.d
@@ -46,15 +47,16 @@ services:
       - "33060:33060"
   
   nginx:
-    depends_on:
-      - api
     image: nginx:stable-alpine
+    container_name: nginx
     volumes:
       - ./nginx:/etc/nginx
       - ./web:/html
     ports:
       - "80:80"
       - "443:443"
+    depends_on:
+      - api
 
 volumes:
   fmp-mysql-data:
