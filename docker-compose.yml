@@ -42,9 +42,10 @@ services:
       - MYSQL_DATABASE=${DBNAME}
       - MYSQL_USER=${DBUSER}
       - MYSQL_PASSWORD=${DBPASSWORD}
-    ports: # for accessing mysql from local machine
-      - "3306:3306"
-      - "33060:33060"
+    # uncomment for accessing mysql from outside
+    # ports:
+    #   - "3306:3306"
+    #   - "33060:33060"
   
   nginx:
     image: nginx:stable-alpine
