@@ -2,7 +2,7 @@ version: '3.4'
 services:
 
   api:
-    image: phylocko/flapmyport_api:0.1.0
+    image: phylocko/flapmyport_api:latest
     container_name: api
     ports:
       - "8080:8080"
@@ -16,7 +16,7 @@ services:
       - db
  
   snmpflapd:
-    image: phylocko/snmpflapd:1.0.0
+    image: phylocko/snmpflapd:latest
     container_name: snmpflapd
     ports: 
       - "${LISTEN_PORT}:${LISTEN_PORT}"
