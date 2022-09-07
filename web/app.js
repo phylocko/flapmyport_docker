@@ -1,192 +1,250 @@
-const apiURL = "api";
-const refreshInterval = 30 * 1000;
-var intervalID;
-var refreshCount = 0;
+const DEFAULT_INTERVAL = "3600";
+const INTERVAL_FROM = "from";
+const INTERVAL_BETWEEN = "between";
+const REFRESH_INTERVAL = 30 * 1000;
 
-
-function dateToString(d) {
-  return d.toISOString().replace("T", " ").slice(0, 19);
-}
-
-function stringToDate(s) {
-  // '2022-04-22 12:55:01'
-  let Y = s.slice(0, 4);
-  let m = s.slice(5, 7) - 1;
-  let d = s.slice(8, 10);
-  let H = s.slice(11, 13);
-  let M = s.slice(14, 16);
-  let S = s.slice(17, 19);
-  return new Date(Y, m, d, H, M, S);
-}
-
-function makeChartGetParams(ipaddress, ifindex, data, start, end) {
-  let params = "flapchart";
-  params += "&host=" + ipaddress;
-  params += "&ifindex=" + ifindex;
-
-  params += "&start=" + data.start;
-  params += "&end=" + data.end;
-  return params;
-}
-
-function makeReviewGetParams(data) {
-  let params;
-  if (isNaN(data.interval)) {
-    if (data.interval == "from") {
-      params = "start=" + data.start;
-    } else if (data.interval == "between") {
-      params = "start=" + data.start + "&end=" + data.end;
-    } else {
-      alert("Wrong period given: " + data.interval);
+class FMPDate extends Date {
+    leadingZero(value) {
+        if (value < 10) value = "0" + value;
+        return value;
     }
-  } else {
-    params = "interval=" + data.interval;
-  }
 
-  params += "&filter=" + data.filter;
+    toLocalString() {
+        let Y = this.getFullYear();
+        let m = this.leadingZero(this.getMonth() + 1);
+        let d = this.leadingZero(this.getDate());
+        let H = this.leadingZero(this.getHours());
+        let M = this.leadingZero(this.getMinutes());
+        let S = this.leadingZero(this.getSeconds());
 
-  return params;
+        return Y + "-" + m + "-" + d + " " + H + ":" + M + ":" + S;
+    }
+
+    toUTCString() {
+        let Y = this.getUTCFullYear();
+        let m = this.leadingZero(this.getUTCMonth() + 1);
+        let d = this.leadingZero(this.getUTCDate());
+        let H = this.leadingZero(this.getUTCHours());
+        let M = this.leadingZero(this.getMinutes());
+        let S = this.leadingZero(this.getSeconds());
+
+        return Y + "-" + m + "-" + d + " " + H + ":" + M + ":" + S;
+    }
+
+    static fromLocalString(s) {
+        // '2022-04-22 12:55:01'
+        let Y = s.slice(0, 4);
+        let m = s.slice(5, 7) - 1;
+        let d = s.slice(8, 10);
+        let H = s.slice(11, 13);
+        let M = s.slice(14, 16);
+        let S = s.slice(17, 19);
+        return new FMPDate(Y, m, d, H, M, S);
+    }
+
+    static dateIsValid(date) {
+        return date instanceof Date && !isNaN(date);
+    }
 }
 
-function getFormData() {
-  let form = $('#main_form');
-  let formArr = form.serializeArray();
-  data = {};
-  for (i = 0; i < formArr.length; i++) {
-    data[formArr[i].name] = formArr[i].value;
-  }
-  return data;
-}
+class Controller {
+    constructor() {
+        this.intervalID = null;
 
-function refresh() {
-  console.log('Refresh');
-  let data = getFormData();
-  refreshCount++;
-  $('#refresh_count').text(refreshCount);
-  review(data);
-  toggleTimer();
-}
+        this.interval = DEFAULT_INTERVAL;
+        this.end = null;
+        this.start = null;
+        this.filter = [];
 
-function review(data) {
-  let mainForm = $('#main_form')
+        this.refresh_count = 0;
 
-  mainForm.find('.form-control').attr('disabled', 1);
+        $("#interval").on("change", this.refresh);
 
-  $("#progress").show();
-
-  let flapTable = $("#flapTable");
-  flapTable.find(".visibleRow").remove();
-
-  let url = "/api?review&" + makeReviewGetParams(data);
-
-  $.get(url, (resp) => {
-    if (resp && resp.hosts && resp.hosts.length) {
-      $("#empty-template").hide();
-
-      resp.hosts.forEach((host, index) => {
-
-        let hostTemplate = $("#host-template").clone();
-        hostTemplate.find('#hostname').text(host.name);
-        hostTemplate.find('#ipaddress').text(host.ipaddress);
-        hostTemplate.addClass("visibleRow");
-        hostTemplate.appendTo(flapTable);
-        hostTemplate.fadeIn(300);
-
-
-        host.ports.forEach((port, index) => {
-          let firstFlap = new Date(port.firstFlapTime);
-          let lastFlap = new Date(port.lastFlapTime);
-          let portTemplate = $("#port-template").clone();
-
-          portTemplate.find("#hostname").text(host.name);
-          portTemplate.find("#ifName").text(port.ifName);
-          portTemplate.find("#ifAlias").text(port.ifAlias);
-          portTemplate.find("#FlapTimes").text(dateToString(firstFlap) + ' - ' + dateToString(lastFlap));
-          portTemplate.find("#flapCount").text(port.flapCount);
-
-          let statusTag = portTemplate.find("#ifOperStatus");
-          statusTag.text(port.ifOperStatus);
-
-          if (port.ifOperStatus === "up") {
-            statusTag.addClass("text-success");
-          } else if (port.ifOperStatus === "down") {
-            statusTag.addClass("text-danger");
-          } else {
-            statusTag.addClass("gray-text");
-          }
-          portTemplate.addClass("visibleRow");
-          portTemplate.appendTo(flapTable);
-          portTemplate.fadeIn(300);
-
-          let chartUrl =
-            "api?" +
-            makeChartGetParams(
-              host.ipaddress,
-              port.ifIndex,
-              data,
-              resp.params.timeStart,
-              resp.params.timeEnd
-            );
-
-          imgTag = portTemplate.find("img");
-          imgTag.attr("src", chartUrl);
+        $("#refreshButton").click((e) => {
+            e.preventDefault();
+            this.refresh();
         });
-      });
-    } else {
-      $("#empty-template").fadeIn();
+
+        this.refresh();
     }
-  });
 
-  $("#progress").hide();
-  mainForm.find('.form-control').removeAttr('disabled');
-}
+    reviewURL = () => {
+        let url = "/api?review";
 
-function toggleTimer() {
-  data = getFormData();
-  if (data.interval === "between") {
-    if (intervalID !== undefined) {
-      clearInterval(intervalID);
+        if (!isNaN(this.interval)) {
+            url += "&interval=" + this.interval;
+        } else if (this.interval == INTERVAL_FROM) {
+            url += "&start=" + this.start.toUTCString();
+        } else if (this.interval == INTERVAL_BETWEEN) {
+            url += "&start=" + this.start.toUTCString() + "&end=" + this.end.toUTCString();
+        }
+
+        if (this.filter.length > 0) {
+            url += "&filter=" + this.filter.join(" ");
+        }
+        return encodeURI(url);
     }
-  } else {
-    if (intervalID !== undefined) {
-      clearInterval(intervalID);
+
+    chartURL = (ipaddress, ifIndex) => {
+        let url = "/api?flapchart&host=" + ipaddress + "&ifindex=" + ifIndex;
+
+        if (!isNaN(this.interval)) {
+            url += "&interval=" + this.interval;
+
+        } else if (this.interval == INTERVAL_FROM) {
+            url += "&start=" + this.start.toUTCString();
+
+        } else if (this.interval == INTERVAL_BETWEEN) {
+            url += "&start=" + this.start.toUTCString() + "&end=" + this.end.toUTCString();
+
+        }
+
+        return encodeURI(url);
     }
-    intervalID = setInterval(refresh, refreshInterval);
-  }
-}
 
-function handleChange() {
+    readForm = () => {
+        let form_arr = $("#main_form").serializeArray();
 
-  $('#interval').on("change", function () {
-    if (this.value === "between") {
-      $("#start_block").fadeIn(200);
-      $("#end_block").fadeIn(200);
+        let data = {};
+        for (let i = 0; i < form_arr.length; i++) {
+            data[form_arr[i].name] = form_arr[i].value;
+        }
 
-    } else if (this.value === "from") {
-      $("#start_block").fadeIn(200);
-      $("#end_block").fadeOut(200);
+        this.filter = data.filter.split(" ");
+        this.interval = data.interval;
 
-    } else {
-      $("#start_block").fadeOut(200);
-      $("#end_block").fadeOut(200);
+        if (!isNaN(this.interval)) {
+            this.end = new FMPDate();
+            this.start = new FMPDate(this.end - this.interval * 1000);
+        } else {
+            this.end = new FMPDate();
+            this.start = new FMPDate(this.end - 3600 * 1000);
 
-      let virtualEnd = new Date();
-      $("#end").val(dateToString(virtualEnd));
+            let start_date = FMPDate.fromLocalString(data.start);
+            if (FMPDate.dateIsValid(start_date)) {
+                this.start = start_date;
+            }
 
-      if (!isNaN(this.value)) {
-        let virtualStart = new Date(virtualEnd - this.value * 1000);
-        $("#start").val(dateToString(virtualStart));
-      }
+            let end_date = FMPDate.fromLocalString(data.end);
+            if (FMPDate.dateIsValid(end_date)) {
+                this.end = end_date;
+            }
+
+        }
+    }
+
+    orderFormElements = () => {
+        if (this.interval === "between") {
+            $("#start_block").fadeIn(200);
+            $("#end_block").fadeIn(200);
+
+        } else if (this.interval === "from") {
+            $("#start_block").fadeIn(200);
+
+        } else {
+            $("#start_block").fadeOut(200);
+            $("#end_block").fadeOut(200);
+
+        }
+
+        $("#start").val(this.start.toLocalString());
+        $("#end").val(this.end.toLocalString());
 
     }
-    refresh();
-  });
-}
 
-function handleRefresh() {
-  $('#refreshButton').click(function (e) {
-    e.preventDefault();
-    refresh();
-  });
+    refresh = () => {
+        this.readForm();
+        this.orderFormElements();
+        this.updateTable();
+        this.refresh_count++;
+        $("#refresh_count").text(this.refresh_count);
+        this.toggleTimer();
+    }
+
+    updateTable = () => {
+        $("#main_form").find(".form-control").attr("disabled", 1);
+        $("#progress").show();
+
+        let flapTable = $("#flapTable");
+        flapTable.find(".visibleRow").remove();
+
+        let url = this.reviewURL();
+
+        $.get(url, (resp) => {
+            if (resp && resp.hosts && resp.hosts.length) {
+                $("#empty-template").hide();
+
+                resp.hosts.forEach((host, index) => {
+                    let hostTemplate = $("#host-template").clone();
+                    hostTemplate.find("#hostname").text(host.name);
+                    hostTemplate.find("#ipaddress").text(host.ipaddress);
+                    hostTemplate.addClass("visibleRow");
+                    hostTemplate.appendTo(flapTable);
+                    hostTemplate.fadeIn(300);
+
+                    host.ports.forEach((port, index) => {
+                        let firstFlap = new FMPDate(port.firstFlapTime);
+                        let lastFlap = new FMPDate(port.lastFlapTime);
+                        let portTemplate = $("#port-template").clone();
+
+                        portTemplate.find("#hostname").text(host.name);
+                        portTemplate.find("#ifName").text(port.ifName);
+                        portTemplate.find("#ifAlias").text(port.ifAlias);
+
+                        portTemplate
+                            .find("#FlapTimes")
+                            .text(
+                                firstFlap.toLocalString() + " - " + lastFlap.toLocalString()
+                            );
+
+                        portTemplate.find("#flapCount").text(port.flapCount);
+
+                        let statusTag = portTemplate.find("#ifOperStatus");
+                        statusTag.text(port.ifOperStatus);
+
+                        if (port.ifOperStatus === "up") {
+                            statusTag.addClass("text-success");
+                        } else if (port.ifOperStatus === "down") {
+                            statusTag.addClass("text-danger");
+                        } else {
+                            statusTag.addClass("gray-text");
+                        }
+                        portTemplate.addClass("visibleRow");
+                        portTemplate.appendTo(flapTable);
+                        portTemplate.fadeIn(300);
+
+                        let chart_url = this.chartURL(
+                            host.ipaddress,
+                            port.ifIndex
+                        );
+
+                        let imgTag = portTemplate.find("img");
+                        imgTag.attr("src", chart_url);
+                    });
+                });
+            } else {
+                $("#empty-template").fadeIn();
+            }
+        });
+
+        $("#progress").fadeOut(200);
+        $("#main_form").find(".form-control").removeAttr("disabled");
+    }
+
+    toggleTimer = () => {
+        if (this.interval === INTERVAL_BETWEEN) {
+            if (this.intervalID !== null) {
+                clearInterval(this.intervalID);
+                this.intervalID = null;
+            }
+
+        } else {
+            if (this.intervalID !== null) {
+                clearInterval(this.intervalID);
+                this.intervalID = null;
+            }
+            this.intervalID = setInterval(this.refresh, REFRESH_INTERVAL);
+        }
+    }
 
 }

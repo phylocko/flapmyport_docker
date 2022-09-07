@@ -40,7 +40,7 @@
                         </select>
                     </div>
 
-                    <div class="input-group-sm" style="display: none;" id="start_block">
+                    <div class="input-group-sm" style="_display: none;" id="start_block">
                         <label class="visually-hidden" for="start">From</label>
                         <div class="input-group input-group-sm">
                             <div class="input-group-text">From</div>
@@ -48,7 +48,7 @@
                         </div>
                     </div>
 
-                    <div class="input-group-sm" style="display: none;" id="end_block">
+                    <div class="input-group-sm" style="_display: none;" id="end_block">
                         <label class="visually-hidden" for="end">To</label>
                         <div class="input-group input-group-sm">
                             <div class="input-group-text">To</div>
@@ -128,25 +128,14 @@
 
 
 <!--  Scripts-->
-<script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+<!-- <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script> -->
+<script src="https://code.jquery.com/jquery-3.6.1.min.js" integrity="sha256-o88AwQnZB+VDvE9tvIXrMQaPlFFSUTR+nldQm1LuPXQ=" crossorigin="anonymous"></script>
 
 <!-- Compiled and minified JavaScript -->
 <script src="app.js"></script>
 
 <script>
-
-    handleChange();
-    handleRefresh();
-
-    let end = new Date()
-    let start = new Date(end - 3600 * 1000);
-    $('#start').val(dateToString(start));
-    $('#end').val(dateToString(end));
-
-    $(() => {
-        refresh();
-    });
-
+    let c = new Controller();
 </script>
 
 
